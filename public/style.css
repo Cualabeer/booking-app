@@ -1,0 +1,6 @@
+body{font-family:Arial,sans-serif;margin:20px;}
+input,select,button{margin:5px;padding:8px;font-size:1em;}
+table{border-collapse:collapse;width:100%;margin-top:10px;}
+th,td{border:1px solid #000;padding:5px;text-align:center;}
+button{cursor:pointer;}
+h1,h2{margin-bottom:10px;}

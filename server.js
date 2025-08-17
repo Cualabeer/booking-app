@@ -1,34 +1,46 @@
 const express = require('express');
 const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 const bcrypt = require('bcrypt');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
-const app = express();
+const { Pool } = require('pg');
 
+const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from public and root (CSS/JS in root)
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(path.join(__dirname))); // root folder for CSS/JS
-
-app.use(session({ secret:'replace-with-strong-secret', resave:false, saveUninitialized:true }));
+app.use(express.static(__dirname)); // for CSS in root
 
 // Supabase setup
 const supabaseUrl = 'https://xleaklvlxpfcjcqsantd.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpZ2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Serve customer page as home
+// PostgreSQL pool for session store
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+app.use(session({
+  store: new PgSession({ pool }),
+  secret: 'replace-with-strong-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+}));
+
+// Home page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'customer.html'));
 });
 
-// Admin login / first-run setup
+// Admin login / first-run password setup
 app.post('/admin/login', async (req,res)=>{
   const {email,password,setEmail,setPassword} = req.body;
   let { data: admin } = await supabase.from('admin').select('*').limit(1).single();
 
+  // First run: no admin yet
   if(!admin){
     if(!setEmail || !setPassword) return res.status(400).json({error:'Provide email/password'});
     const hash = await bcrypt.hash(setPassword,10);
@@ -39,14 +51,28 @@ app.post('/admin/login', async (req,res)=>{
 
   if(email !== admin.email) return res.status(401).json({error:'Invalid email/password'});
   const match = await bcrypt.compare(password, admin.password_hash);
-  if(match){ req.session.admin = true; return res.json({success:true,firstRun:false}); }
+  if(match){ 
+    req.session.admin = true; 
+    return res.json({success:true,firstRun:false}); 
+  }
   else return res.status(401).json({error:'Invalid email/password'});
 });
 
-app.get('/admin/status',(req,res)=>{ res.json({loggedIn:!!req.session.admin}); });
-app.post('/admin/logout',(req,res)=>{ req.session.destroy(err=>{ if(err) return res.status(500).json({success:false,error:'Logout failed'}); res.clearCookie('connect.sid',{path:'/'}); res.json({success:true}); }); });
+// Admin session status
+app.get('/admin/status',(req,res)=>{ 
+  res.json({loggedIn:!!req.session.admin}); 
+});
 
-// Booking endpoints with validation
+// Admin logout
+app.post('/admin/logout',(req,res)=>{
+  req.session.destroy(err=>{
+    if(err) return res.status(500).json({success:false,error:'Logout failed'});
+    res.clearCookie('connect.sid',{path:'/'});
+    res.json({success:true});
+  });
+});
+
+// View all bookings (admin)
 app.get('/admin/bookings', async (req,res)=>{
   if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
   const { data, error } = await supabase.from('bookings').select('*');
@@ -54,22 +80,19 @@ app.get('/admin/bookings', async (req,res)=>{
   res.json(data);
 });
 
+// Add new booking
 app.post('/admin/bookings', async (req,res)=>{
-  let {name,email,phone,vehicle,date,time,bay,garage,status} = req.body;
-
+  let {name,email,phone,vehicle,date,time,bay,garage} = req.body;
   if(!name||!email||!phone||!vehicle||!date||!time||!bay||!garage) 
     return res.status(400).json({error:'All fields required'});
 
-  // Validate email
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if(!emailRegex.test(email)) return res.status(400).json({error:'Invalid email format'});
 
-  // Validate and format date
   const dateObj = new Date(date);
   if(isNaN(dateObj)) return res.status(400).json({error:'Invalid date format'});
-  const formattedDate = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+  const formattedDate = dateObj.toISOString().split('T')[0];
 
-  // Validate and format time
   const timeMatch = time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if(!timeMatch) return res.status(400).json({error:'Invalid time format'});
   const hours = timeMatch[1].padStart(2,'0');
@@ -78,34 +101,23 @@ app.post('/admin/bookings', async (req,res)=>{
   const formattedTime = `${hours}:${minutes}:${seconds}`;
 
   try {
-    const { data, error } = await supabase.from('bookings').insert([{
-      name,email,phone,vehicle,date:formattedDate,time:formattedTime,bay,garage,status:'Pending'
-    }]);
-
+    const { data, error } = await supabase.from('bookings').insert([{ name,email,phone,vehicle,date:formattedDate,time:formattedTime,bay,garage,status:'Pending' }]);
     if(error) return res.status(500).json({error:error.message});
     if(!data || data.length === 0) return res.status(500).json({error:'Insert failed, no data returned'});
-
     res.json({success:true, bookingId: data[0].id});
   } catch(err){
     res.status(500).json({error:err.message});
   }
 });
 
-// Reset database endpoint (admin only)
+// Reset bookings database (admin only)
 app.post('/admin/reset-database', async (req, res) => {
   if (!req.session.admin) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    // Delete all bookings
-    await supabase.from('bookings').delete().neq('id', 0);
-
-    // Optional: delete admin to allow first-run setup again
-    // await supabase.from('admin').delete().neq('id', 0);
-
-    res.json({ success: true, message: 'Database cleared successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  try { 
+    await supabase.from('bookings').delete().neq('id', 0); 
+    res.json({ success: true, message: 'Database cleared' }); 
   }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3000;

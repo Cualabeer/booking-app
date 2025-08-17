@@ -10,7 +10,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(__dirname)); // root folder for any other static files
 
 // Supabase setup using environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -68,6 +67,15 @@ app.get('/admin/bookings', async (req,res)=>{
   res.json(data);
 });
 
+// View single booking
+app.get('/admin/bookings/:id', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  const id = req.params.id;
+  const { data, error } = await supabase.from('bookings').select('*').eq('id',id).single();
+  if(error) return res.status(500).json({error:error.message});
+  res.json(data);
+});
+
 // Add new booking
 app.post('/admin/bookings', async (req,res)=>{
   let {name,email,phone,vehicle,date,time,bay,garage} = req.body;
@@ -93,6 +101,20 @@ app.post('/admin/bookings', async (req,res)=>{
     if(error) return res.status(500).json({error:error.message});
     if(!data || data.length === 0) return res.status(500).json({error:'Insert failed, no data returned'});
     res.json({success:true, bookingId: data[0].id});
+  } catch(err){
+    res.status(500).json({error:err.message});
+  }
+});
+
+// Update booking
+app.put('/admin/bookings/:id', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  const id = req.params.id;
+  const { name,email,phone,vehicle,date,time,bay,garage,status } = req.body;
+  try {
+    const { data, error } = await supabase.from('bookings').update({ name,email,phone,vehicle,date,time,bay,garage,status }).eq('id',id);
+    if(error) return res.status(500).json({error:error.message});
+    res.json({success:true});
   } catch(err){
     res.status(500).json({error:err.message});
   }

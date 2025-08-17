@@ -1,10 +1,8 @@
 const express = require('express');
 const session = require('express-session');
-const PgSession = require('connect-pg-simple')(session);
 const bcrypt = require('bcrypt');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
-const { Pool } = require('pg');
 
 const app = express();
 app.use(express.json());
@@ -12,56 +10,45 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(__dirname)); // for CSS in root
+app.use(express.static(__dirname)); // root for CSS
 
 // Supabase setup
 const supabaseUrl = 'https://xleaklvlxpfcjcqsantd.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpZ2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// PostgreSQL pool for session store
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
+// Session setup (memory store)
 app.use(session({
-  store: new PgSession({ pool }),
   secret: 'replace-with-strong-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+  cookie: { maxAge: 24*60*60*1000 }
 }));
 
 // Home page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'customer.html'));
-});
+app.get('/', (req,res) => res.sendFile(path.join(__dirname,'public','customer.html')));
 
 // Admin login / first-run password setup
-app.post('/admin/login', async (req,res)=>{
+app.post('/admin/login', async (req,res) => {
   const {email,password,setEmail,setPassword} = req.body;
   let { data: admin } = await supabase.from('admin').select('*').limit(1).single();
 
-  // First run: no admin yet
-  if(!admin){
+  if(!admin){ // first-run
     if(!setEmail || !setPassword) return res.status(400).json({error:'Provide email/password'});
     const hash = await bcrypt.hash(setPassword,10);
-    await supabase.from('admin').insert({ email: setEmail, password_hash: hash });
+    await supabase.from('admin').insert({ email:setEmail, password_hash: hash });
     req.session.admin = true;
     return res.json({success:true,firstRun:true});
   }
 
   if(email !== admin.email) return res.status(401).json({error:'Invalid email/password'});
   const match = await bcrypt.compare(password, admin.password_hash);
-  if(match){ 
-    req.session.admin = true; 
-    return res.json({success:true,firstRun:false}); 
-  }
+  if(match){ req.session.admin = true; return res.json({success:true,firstRun:false}); }
   else return res.status(401).json({error:'Invalid email/password'});
 });
 
 // Admin session status
-app.get('/admin/status',(req,res)=>{ 
-  res.json({loggedIn:!!req.session.admin}); 
-});
+app.get('/admin/status',(req,res)=>{ res.json({loggedIn:!!req.session.admin}); });
 
 // Admin logout
 app.post('/admin/logout',(req,res)=>{
@@ -72,7 +59,7 @@ app.post('/admin/logout',(req,res)=>{
   });
 });
 
-// View all bookings (admin)
+// View bookings
 app.get('/admin/bookings', async (req,res)=>{
   if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
   const { data, error } = await supabase.from('bookings').select('*');
@@ -110,15 +97,16 @@ app.post('/admin/bookings', async (req,res)=>{
   }
 });
 
-// Reset bookings database (admin only)
-app.post('/admin/reset-database', async (req, res) => {
-  if (!req.session.admin) return res.status(401).json({ error: 'Unauthorized' });
-  try { 
-    await supabase.from('bookings').delete().neq('id', 0); 
-    res.json({ success: true, message: 'Database cleared' }); 
+// Reset database
+app.post('/admin/reset-database', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  try {
+    await supabase.from('bookings').delete().neq('id',0);
+    res.json({success:true,message:'Database cleared'});
+  } catch(err){
+    res.status(500).json({error:err.message});
   }
-  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT,()=>console.log('Server running on port '+PORT));
+app.listen(PORT,()=>console.log(`Server running on port ${PORT}`));

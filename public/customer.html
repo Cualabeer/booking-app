@@ -1,43 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MOT Booking</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<h1>Book Your MOT</h1>
+<h1>Book your MOT</h1>
 <form id="bookingForm">
-<input type="text" id="name" placeholder="Full Name" required>
-<input type="email" id="emailC" placeholder="Email" required>
-<input type="tel" id="phone" placeholder="Phone" required>
-<input type="text" id="vehicle" placeholder="Vehicle Reg" required>
-<input type="date" id="date" required>
-<input type="time" id="time" required>
-<select id="bay"><option>Bay 1</option><option>Bay 2</option></select>
-<select id="garage"><option>Garage A</option><option>Garage B</option></select>
-<button type="submit">Book MOT</button>
+  <input type="text" name="name" placeholder="Name" required><br>
+  <input type="email" name="email" placeholder="Email" required><br>
+  <input type="text" name="phone" placeholder="Phone" required><br>
+  <input type="text" name="vehicle" placeholder="Vehicle" required><br>
+  <input type="date" name="date" required><br>
+  <input type="time" name="time" required><br>
+  <input type="text" name="bay" placeholder="Bay" required><br>
+  <input type="text" name="garage" placeholder="Garage" required><br>
+  <button type="submit">Book MOT</button>
 </form>
+<div id="message"></div>
 <script>
 document.getElementById('bookingForm').addEventListener('submit', async e=>{
-e.preventDefault();
-const payload={
-name:document.getElementById('name').value,
-email:document.getElementById('emailC').value,
-phone:document.getElementById('phone').value,
-vehicle:document.getElementById('vehicle').value,
-date:document.getElementById('date').value,
-time:document.getElementById('time').value,
-bay:document.getElementById('bay').value,
-garage:document.getElementById('garage').value,
-status:'Pending'
-};
-try{
-const res=await fetch('/admin/bookings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-const data=await res.json();
-if(data.success){alert('Booking submitted! ID: '+data.bookingId);e.target.reset();}else alert('Error: '+(data.error||'Booking failed'));
-}catch(err){alert('Booking failed: '+err.message);}
+  e.preventDefault();
+  const formData = Object.fromEntries(new FormData(e.target));
+  const res = await fetch('/admin/bookings', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(formData)
+  });
+  const data = await res.json();
+  document.getElementById('message').textContent = data.success ? 'Booking successful!' : data.error;
 });
 </script>
 </body>

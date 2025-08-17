@@ -46,7 +46,7 @@ app.post('/admin/login', async (req,res)=>{
 app.get('/admin/status',(req,res)=>{ res.json({loggedIn:!!req.session.admin}); });
 app.post('/admin/logout',(req,res)=>{ req.session.destroy(err=>{ if(err) return res.status(500).json({success:false,error:'Logout failed'}); res.clearCookie('connect.sid',{path:'/'}); res.json({success:true}); }); });
 
-// Booking endpoints
+// Booking endpoints with date/time validation
 app.get('/admin/bookings', async (req,res)=>{
   if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
   const { data, error } = await supabase.from('bookings').select('*');
@@ -55,11 +55,37 @@ app.get('/admin/bookings', async (req,res)=>{
 });
 
 app.post('/admin/bookings', async (req,res)=>{
-  const {name,email,phone,vehicle,date,time,bay,garage,status} = req.body;
-  if(!name||!email||!phone||!vehicle||!date||!time||!bay||!garage) return res.status(400).json({error:'All fields required'});
-  const { data, error } = await supabase.from('bookings').insert([{name,email,phone,vehicle,date,time,bay,garage,status:'Pending'}]);
-  if(error) return res.status(500).json({error:error.message});
-  res.json({success:true,bookingId:data[0].id});
+  let {name,email,phone,vehicle,date,time,bay,garage,status} = req.body;
+
+  if(!name||!email||!phone||!vehicle||!date||!time||!bay||!garage) 
+    return res.status(400).json({error:'All fields required'});
+
+  // Validate email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!emailRegex.test(email)) return res.status(400).json({error:'Invalid email format'});
+
+  // Validate and format date
+  const dateObj = new Date(date);
+  if(isNaN(dateObj)) return res.status(400).json({error:'Invalid date format'});
+  const formattedDate = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // Validate and format time
+  const timeMatch = time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(!timeMatch) return res.status(400).json({error:'Invalid time format'});
+  const hours = timeMatch[1].padStart(2,'0');
+  const minutes = timeMatch[2];
+  const seconds = timeMatch[3] ? timeMatch[3] : '00';
+  const formattedTime = `${hours}:${minutes}:${seconds}`;
+
+  try {
+    const { data, error } = await supabase.from('bookings').insert([{
+      name,email,phone,vehicle,date:formattedDate,time:formattedTime,bay,garage,status:'Pending'
+    }]);
+    if(error) return res.status(500).json({error:error.message});
+    res.json({success:true,bookingId:data[0].id});
+  } catch(err){
+    res.status(500).json({error:err.message});
+  }
 });
 
 // Reset database endpoint (admin only)

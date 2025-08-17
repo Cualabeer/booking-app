@@ -15,6 +15,11 @@ const supabaseUrl = 'https://xleaklvlxpfcjcqsantd.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Serve customer booking page as home
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'customer.html'));
+});
+
 // Admin login / first-run setup
 app.post('/admin/login', async (req,res)=>{
   const {email,password,setEmail,setPassword} = req.body;
@@ -51,6 +56,23 @@ app.post('/admin/bookings', async (req,res)=>{
   const { data, error } = await supabase.from('bookings').insert([{name,email,phone,vehicle,date,time,bay,garage,status:'Pending'}]);
   if(error) return res.status(500).json({error:error.message});
   res.json({success:true,bookingId:data[0].id});
+});
+
+// Reset database endpoint (admin only)
+app.post('/admin/reset-database', async (req, res) => {
+  if (!req.session.admin) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    // Delete all bookings
+    await supabase.from('bookings').delete().neq('id', 0);
+
+    // Optional: delete admin to allow first-run setup again
+    // await supabase.from('admin').delete().neq('id', 0);
+
+    res.json({ success: true, message: 'Database cleared successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

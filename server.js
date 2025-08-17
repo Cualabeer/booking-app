@@ -46,7 +46,7 @@ app.post('/admin/login', async (req,res)=>{
 app.get('/admin/status',(req,res)=>{ res.json({loggedIn:!!req.session.admin}); });
 app.post('/admin/logout',(req,res)=>{ req.session.destroy(err=>{ if(err) return res.status(500).json({success:false,error:'Logout failed'}); res.clearCookie('connect.sid',{path:'/'}); res.json({success:true}); }); });
 
-// Booking endpoints with date/time validation
+// Booking endpoints with validation
 app.get('/admin/bookings', async (req,res)=>{
   if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
   const { data, error } = await supabase.from('bookings').select('*');
@@ -81,8 +81,11 @@ app.post('/admin/bookings', async (req,res)=>{
     const { data, error } = await supabase.from('bookings').insert([{
       name,email,phone,vehicle,date:formattedDate,time:formattedTime,bay,garage,status:'Pending'
     }]);
+
     if(error) return res.status(500).json({error:error.message});
-    res.json({success:true,bookingId:data[0].id});
+    if(!data || data.length === 0) return res.status(500).json({error:'Insert failed, no data returned'});
+
+    res.json({success:true, bookingId: data[0].id});
   } catch(err){
     res.status(500).json({error:err.message});
   }

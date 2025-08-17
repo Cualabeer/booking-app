@@ -7,15 +7,19 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname,'public')));
+
+// Serve static files from public and root (CSS/JS in root)
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname))); // root folder for CSS/JS
+
 app.use(session({ secret:'replace-with-strong-secret', resave:false, saveUninitialized:true }));
 
-// Supabase setup with your URL and Key
+// Supabase setup
 const supabaseUrl = 'https://xleaklvlxpfcjcqsantd.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Serve customer booking page as home
+// Serve customer page as home
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'customer.html'));
 });

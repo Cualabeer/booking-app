@@ -8,39 +8,44 @@
 <body>
 <h1>Admin Dashboard</h1>
 
+<!-- --- Admin Logout --- -->
+<button id="logoutBtn">Logout</button>
+
+<hr>
+
+<!-- --- Garage Management --- -->
+<h2>Manage Garages</h2>
+<form id="addGarageForm">
+  <input type="text" id="garageName" placeholder="Garage Name" required>
+  <input type="text" id="garageLocation" placeholder="Location">
+  <input type="number" id="garageRamps" placeholder="Number of Ramps" required>
+  <button type="submit">Add Garage</button>
+</form>
+
 <div class="table-wrapper">
-  <table id="bookingsTable">
+  <table id="garagesTable">
     <thead>
       <tr>
-        <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Vehicle</th>
-        <th>Date</th><th>Time</th><th>Bay</th><th>Garage</th><th>Status</th><th>Actions</th>
+        <th>ID</th><th>Name</th><th>Location</th><th>Ramps</th><th>Actions</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 </div>
 
-<div id="editModal" class="modal">
-  <div class="modal-content">
-    <span id="closeModal" class="close">&times;</span>
-    <h2>Edit Booking</h2>
-    <form id="editForm">
-      <input type="hidden" id="editId">
-      <input type="text" id="editName" placeholder="Name" required>
-      <input type="email" id="editEmail" placeholder="Email" required>
-      <input type="text" id="editPhone" placeholder="Phone" required>
-      <input type="text" id="editVehicle" placeholder="Vehicle" required>
-      <input type="date" id="editDate" required>
-      <input type="time" id="editTime" required>
-      <input type="text" id="editBay" placeholder="Bay" required>
-      <input type="text" id="editGarage" placeholder="Garage" required>
-      <select id="editStatus">
-        <option value="Pending">Pending</option>
-        <option value="Completed">Completed</option>
-      </select>
-      <button type="submit">Save Changes</button>
-    </form>
-  </div>
+<hr>
+
+<!-- --- Booking Management --- -->
+<h2>Bookings</h2>
+<div class="table-wrapper">
+  <table id="bookingsTable">
+    <thead>
+      <tr>
+        <th>ID</th><th>Customer</th><th>Garage</th><th>Slot</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
 
 <script src="admin.js"></script>

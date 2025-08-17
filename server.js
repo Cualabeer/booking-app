@@ -10,9 +10,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname,'public')));
 app.use(session({ secret:'replace-with-strong-secret', resave:false, saveUninitialized:true }));
 
-// Supabase setup
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+// Supabase setup with your URL and Key
+const supabaseUrl = 'https://xleaklvlxpfcjcqsantd.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Admin login / first-run setup

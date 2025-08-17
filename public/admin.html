@@ -1,32 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Admin Login</title>
-<link rel="stylesheet" href="/style.css">
+<title>Admin Dashboard</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h1>Admin Login</h1>
-<form id="adminForm">
-  <input type="email" name="email" placeholder="Email"><br>
-  <input type="password" name="password" placeholder="Password"><br>
-  <input type="email" name="setEmail" placeholder="Set Email (first run)"><br>
-  <input type="password" name="setPassword" placeholder="Set Password (first run)"><br>
-  <button type="submit">Login / Set Password</button>
-</form>
-<div id="adminMsg"></div>
-<script>
-document.getElementById('adminForm').addEventListener('submit', async e=>{
-  e.preventDefault();
-  const formData = Object.fromEntries(new FormData(e.target));
-  const res = await fetch('/admin/login',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(formData)
-  });
-  const data = await res.json();
-  document.getElementById('adminMsg').textContent = data.success ? 'Logged in!' : data.error;
-});
-</script>
+<h1>Admin Dashboard</h1>
+
+<div class="table-wrapper">
+  <table id="bookingsTable">
+    <thead>
+      <tr>
+        <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Vehicle</th>
+        <th>Date</th><th>Time</th><th>Bay</th><th>Garage</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div id="editModal" class="modal">
+  <div class="modal-content">
+    <span id="closeModal" class="close">&times;</span>
+    <h2>Edit Booking</h2>
+    <form id="editForm">
+      <input type="hidden" id="editId">
+      <input type="text" id="editName" placeholder="Name" required>
+      <input type="email" id="editEmail" placeholder="Email" required>
+      <input type="text" id="editPhone" placeholder="Phone" required>
+      <input type="text" id="editVehicle" placeholder="Vehicle" required>
+      <input type="date" id="editDate" required>
+      <input type="time" id="editTime" required>
+      <input type="text" id="editBay" placeholder="Bay" required>
+      <input type="text" id="editGarage" placeholder="Garage" required>
+      <select id="editStatus">
+        <option value="Pending">Pending</option>
+        <option value="Completed">Completed</option>
+      </select>
+      <button type="submit">Save Changes</button>
+    </form>
+  </div>
+</div>
+
+<script src="admin.js"></script>
 </body>
 </html>

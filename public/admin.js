@@ -1,62 +1,64 @@
-document.addEventListener('DOMContentLoaded',async()=>{
-const f=document.getElementById('adminFormContainer');
-const d=document.getElementById('dashboard');
-const logoutBtn=document.getElementById('logoutBtn');
-
-async function loadBookings(){
-  try{
-    const res=await fetch('/admin/bookings',{credentials:'include'});
-    const bookings=await res.json();
-    const tbody=document.querySelector('#bookingsTable tbody');
-    tbody.innerHTML='';
-    bookings.forEach(b=>{
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${b.id}</td><td>${b.name}</td><td>${b.email}</td><td>${b.phone}</td><td>${b.vehicle}</td><td>${b.date}</td><td>${b.time}</td><td>${b.bay}</td><td>${b.garage}</td><td>${b.status}</td>`;
-      tbody.appendChild(tr);
-    });
-  }catch(err){console.error(err);}
-}
-
-async function checkLoginStatus(){
-  try{
-    const res=await fetch('/admin/status',{credentials:'include'});
-    const data=await res.json();
-    if(data.loggedIn){d.style.display='block';f.style.display='none';loadBookings();}
-    else showLoginForm(false);
-  }catch{showLoginForm(false);}
-}
-
-function showLoginForm(firstTime){
-  f.innerHTML='';
-  const t=document.createElement('h2');
-  t.innerText=firstTime?'Set Admin Email & Password':'Admin Login';
-  f.appendChild(t);
-  const form=document.createElement('form');
-  form.innerHTML=`<input type="email" id="email" placeholder="Email" required><input type="password" id="password" placeholder="Password" required><button type="submit">${firstTime?'Set Account':'Login'}</button>`;
-  f.appendChild(form);
-  form.addEventListener('submit',async e=>{
-    e.preventDefault();
-    const email=document.getElementById('email').value.trim();
-    const pwd=document.getElementById('password').value.trim();
-    if(!email||!pwd) return alert('Email/password required');
-    const payload=firstTime?{setEmail:email,setPassword:pwd}:{email,password:pwd};
-    try{
-      const res=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),credentials:'include'});
-      const data=await res.json();
-      if(data.success){d.style.display='block';f.style.display='none';loadBookings();}
-      else alert(data.error||'Login failed');
-    }catch(err){alert(err.message);}
+async function loadBookings() {
+  const res = await fetch('/admin/bookings');
+  const bookings = await res.json();
+  const tbody = document.querySelector('#bookingsTable tbody');
+  tbody.innerHTML = '';
+  bookings.forEach(b => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${b.id}</td><td>${b.name}</td><td>${b.email}</td><td>${b.phone}</td>
+      <td>${b.vehicle}</td><td>${b.date}</td><td>${b.time}</td><td>${b.bay}</td>
+      <td>${b.garage}</td><td>${b.status}</td>
+      <td><button onclick="editBooking(${b.id})">Edit</button></td>
+    `;
+    tbody.appendChild(tr);
   });
 }
 
-logoutBtn?.addEventListener('click',async()=>{
-  try{
-    const res=await fetch('/admin/logout',{method:'POST',credentials:'include'});
-    const data=await res.json();
-    if(data.success){d.style.display='none';f.style.display='block';}
-    else alert(data.error||'Logout failed');
-  }catch(err){alert('Logout failed:'+err.message);}
-});
+function editBooking(id) {
+  fetch(`/admin/bookings/${id}`)
+    .then(res => res.json())
+    .then(b => {
+      document.getElementById('editId').value = b.id;
+      document.getElementById('editName').value = b.name;
+      document.getElementById('editEmail').value = b.email;
+      document.getElementById('editPhone').value = b.phone;
+      document.getElementById('editVehicle').value = b.vehicle;
+      document.getElementById('editDate').value = b.date;
+      document.getElementById('editTime').value = b.time;
+      document.getElementById('editBay').value = b.bay;
+      document.getElementById('editGarage').value = b.garage;
+      document.getElementById('editStatus').value = b.status;
+      document.getElementById('editModal').style.display = 'block';
+    });
+}
 
-checkLoginStatus();
-});
+document.getElementById('closeModal').onclick = () => {
+  document.getElementById('editModal').style.display = 'none';
+};
+
+document.getElementById('editForm').onsubmit = async e => {
+  e.preventDefault();
+  const id = document.getElementById('editId').value;
+  const payload = {
+    name: document.getElementById('editName').value,
+    email: document.getElementById('editEmail').value,
+    phone: document.getElementById('editPhone').value,
+    vehicle: document.getElementById('editVehicle').value,
+    date: document.getElementById('editDate').value,
+    time: document.getElementById('editTime').value,
+    bay: document.getElementById('editBay').value,
+    garage: document.getElementById('editGarage').value,
+    status: document.getElementById('editStatus').value
+  };
+  const res = await fetch(`/admin/bookings/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await res.json();
+  if(result.success){ loadBookings(); document.getElementById('editModal').style.display = 'none'; }
+  else { alert(result.error); }
+};
+
+loadBookings();

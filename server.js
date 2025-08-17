@@ -10,16 +10,17 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(__dirname)); // root for CSS
+app.use(express.static(__dirname)); // root folder for any other static files
 
-// Supabase setup
-const supabaseUrl = 'https://xleaklvlxpfcjcqsantd.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsZWFrbHZseHBmY2pjcXNhbnRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA3MTA0MywiZXhwIjoyMDcwNjQ3MDQzfQ.JlPX0F_Cfb-yXUE5-VX2p1DC41zWWSGpCKDjGDNaDXY';
+// Supabase setup using environment variables
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+if (!supabaseUrl || !supabaseKey) throw new Error('Supabase URL or KEY not set in environment variables');
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Session setup (memory store)
+// Session setup
 app.use(session({
-  secret: 'replace-with-strong-secret',
+  secret: process.env.SESSION_SECRET || 'replace-with-strong-secret',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 24*60*60*1000 }

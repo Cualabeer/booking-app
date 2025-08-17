@@ -1,135 +1,108 @@
-const express = require('express');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
-const { createClient } = require('@supabase/supabase-js');
-const path = require('path');
+// server.js
+import express from 'express';
+import session from 'express-session';
+import bodyParser from 'body-parser';
+import { createClient } from '@supabase/supabase-js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Supabase setup using environment variables
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-if (!supabaseUrl || !supabaseKey) throw new Error('Supabase URL or KEY not set in environment variables');
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Session setup
+// --- Session setup ---
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'replace-with-strong-secret',
+  secret: 'YOUR_SECRET_KEY',
   resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 24*60*60*1000 }
+  saveUninitialized: false
 }));
 
-// Home page
-app.get('/', (req,res) => res.sendFile(path.join(__dirname,'public','customer.html')));
+// --- Supabase setup ---
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+if(!supabaseUrl || !supabaseKey) throw new Error('Supabase URL and KEY required');
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Admin login / first-run password setup
-app.post('/admin/login', async (req,res) => {
-  const {email,password,setEmail,setPassword} = req.body;
-  let { data: admin } = await supabase.from('admin').select('*').limit(1).single();
+// --- Serve static files ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, 'public')));
 
-  if(!admin){ // first-run
-    if(!setEmail || !setPassword) return res.status(400).json({error:'Provide email/password'});
-    const hash = await bcrypt.hash(setPassword,10);
-    await supabase.from('admin').insert({ email:setEmail, password_hash: hash });
-    req.session.admin = true;
-    return res.json({success:true,firstRun:true});
-  }
-
-  if(email !== admin.email) return res.status(401).json({error:'Invalid email/password'});
-  const match = await bcrypt.compare(password, admin.password_hash);
-  if(match){ req.session.admin = true; return res.json({success:true,firstRun:false}); }
-  else return res.status(401).json({error:'Invalid email/password'});
+// --- Admin Authentication ---
+app.post('/admin/login', async (req,res)=>{
+  const { email, password } = req.body;
+  const { data, error } = await supabase.from('admin')
+    .select('*').eq('email', email).eq('password', password);
+  if(error) return res.status(500).json({error:error.message});
+  if(data.length===0) return res.status(401).json({error:'Invalid credentials'});
+  req.session.admin = true;
+  res.json({success:true});
 });
 
-// Admin session status
-app.get('/admin/status',(req,res)=>{ res.json({loggedIn:!!req.session.admin}); });
-
-// Admin logout
 app.post('/admin/logout',(req,res)=>{
   req.session.destroy(err=>{
-    if(err) return res.status(500).json({success:false,error:'Logout failed'});
-    res.clearCookie('connect.sid',{path:'/'});
+    if(err) return res.status(500).json({success:false,error:err.message});
     res.json({success:true});
   });
 });
 
-// View bookings
+// --- Garage Management ---
+app.get('/admin/garages', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  const { data, error } = await supabase.from('garages').select('*');
+  if(error) return res.status(500).json({error:error.message});
+  res.json(data);
+});
+
+app.post('/admin/garages', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  const { name, location, num_ramps } = req.body;
+  const { data, error } = await supabase.from('garages')
+    .insert([{ name, location, num_ramps }]);
+  if(error) return res.status(500).json({error:error.message});
+  res.json({success:true, garageId:data[0].id});
+});
+
+app.put('/admin/garages/:id', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  const { id } = req.params;
+  const { name, location, num_ramps } = req.body;
+  const { data, error } = await supabase.from('garages')
+    .update({ name, location, num_ramps }).eq('id', id);
+  if(error) return res.status(500).json({error:error.message});
+  res.json({success:true});
+});
+
+app.delete('/admin/garages/:id', async (req,res)=>{
+  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
+  const { id } = req.params;
+  const { data, error } = await supabase.from('garages').delete().eq('id', id);
+  if(error) return res.status(500).json({error:error.message});
+  res.json({success:true});
+});
+
+// --- Booking Management ---
 app.get('/admin/bookings', async (req,res)=>{
   if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
-  const { data, error } = await supabase.from('bookings').select('*');
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, customer_name, garage_name:garages.name, slot');
   if(error) return res.status(500).json({error:error.message});
   res.json(data);
 });
 
-// View single booking
-app.get('/admin/bookings/:id', async (req,res)=>{
+app.delete('/admin/bookings/:id', async (req,res)=>{
   if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
-  const id = req.params.id;
-  const { data, error } = await supabase.from('bookings').select('*').eq('id',id).single();
+  const { id } = req.params;
+  const { data, error } = await supabase.from('bookings').delete().eq('id', id);
   if(error) return res.status(500).json({error:error.message});
-  res.json(data);
+  res.json({success:true});
 });
 
-// Add new booking
-app.post('/admin/bookings', async (req,res)=>{
-  let {name,email,phone,vehicle,date,time,bay,garage} = req.body;
-  if(!name||!email||!phone||!vehicle||!date||!time||!bay||!garage) 
-    return res.status(400).json({error:'All fields required'});
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if(!emailRegex.test(email)) return res.status(400).json({error:'Invalid email format'});
-
-  const dateObj = new Date(date);
-  if(isNaN(dateObj)) return res.status(400).json({error:'Invalid date format'});
-  const formattedDate = dateObj.toISOString().split('T')[0];
-
-  const timeMatch = time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(!timeMatch) return res.status(400).json({error:'Invalid time format'});
-  const hours = timeMatch[1].padStart(2,'0');
-  const minutes = timeMatch[2];
-  const seconds = timeMatch[3] ? timeMatch[3] : '00';
-  const formattedTime = `${hours}:${minutes}:${seconds}`;
-
-  try {
-    const { data, error } = await supabase.from('bookings').insert([{ name,email,phone,vehicle,date:formattedDate,time:formattedTime,bay,garage,status:'Pending' }]);
-    if(error) return res.status(500).json({error:error.message});
-    if(!data || data.length === 0) return res.status(500).json({error:'Insert failed, no data returned'});
-    res.json({success:true, bookingId: data[0].id});
-  } catch(err){
-    res.status(500).json({error:err.message});
-  }
+// --- Serve Admin Page ---
+app.get('/admin.html', (req,res)=>{
+  res.sendFile(path.join(__dirname,'public','admin.html'));
 });
 
-// Update booking
-app.put('/admin/bookings/:id', async (req,res)=>{
-  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
-  const id = req.params.id;
-  const { name,email,phone,vehicle,date,time,bay,garage,status } = req.body;
-  try {
-    const { data, error } = await supabase.from('bookings').update({ name,email,phone,vehicle,date,time,bay,garage,status }).eq('id',id);
-    if(error) return res.status(500).json({error:error.message});
-    res.json({success:true});
-  } catch(err){
-    res.status(500).json({error:err.message});
-  }
-});
-
-// Reset database
-app.post('/admin/reset-database', async (req,res)=>{
-  if(!req.session.admin) return res.status(401).json({error:'Unauthorized'});
-  try {
-    await supabase.from('bookings').delete().neq('id',0);
-    res.json({success:true,message:'Database cleared'});
-  } catch(err){
-    res.status(500).json({error:err.message});
-  }
-});
-
+// --- Start Server ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
+app.listen(PORT, ()=>console.log(`Server running on port ${PORT}`));
